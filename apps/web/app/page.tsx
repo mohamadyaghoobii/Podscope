@@ -1,168 +1,277 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { AnalysisResult, ExampleManifest, RuleInfo, analyzeManifest, getExamples, getRules } from "../lib/api";
-import { FindingList } from "../components/FindingList";
-import { ScoreRing } from "../components/ScoreRing";
+import {
+  AnalysisResult,
+  ExampleManifest,
+  RuleInfo,
+  Severity,
+  analyzeManifest,
+  getExamples,
+  getRules
+} from "../lib/api";
+import { ManifestEditor } from "../components/ManifestEditor";
+import { ScoreCard } from "../components/ScoreCard";
+import { CategoryBreakdown, SeverityBreakdown, StatTiles } from "../components/Breakdown";
+import { FindingsPanel } from "../components/FindingsPanel";
+import { ResourceMap } from "../components/ResourceMap";
+import { AiPanel } from "../components/AiPanel";
+import { RulesView } from "../components/RulesView";
+import { ExamplesView } from "../components/ExamplesView";
+import { DocsView } from "../components/DocsView";
+import { BookIcon, LayersIcon, RulesIcon, ScopeIcon } from "../components/icons";
 
-const fallbackManifest = `apiVersion: apps/v1
+type View = "review" | "rules" | "examples" | "docs";
+type ResultTab = "findings" | "resources" | "assistant";
+
+const STARTER = `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: storefront
+  name: checkout
   namespace: prod
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: storefront
+      app: checkout
   template:
     metadata:
       labels:
-        app: storefront
+        app: checkout
     spec:
       containers:
         - name: web
-          image: nginx:latest`;
+          image: nginx:latest
+          securityContext:
+            privileged: true`;
+
+const NAV: Array<{ id: View; label: string; Icon: typeof ScopeIcon }> = [
+  { id: "review", label: "Review", Icon: ScopeIcon },
+  { id: "rules", label: "Rules", Icon: RulesIcon },
+  { id: "examples", label: "Examples", Icon: LayersIcon },
+  { id: "docs", label: "Docs", Icon: BookIcon }
+];
 
 export default function HomePage() {
-  const [manifestName, setManifestName] = useState("workload.yaml");
-  const [content, setContent] = useState(fallbackManifest);
+  const [view, setView] = useState<View>("review");
+  const [resultTab, setResultTab] = useState<ResultTab>("findings");
+  const [name, setName] = useState("checkout.yaml");
+  const [content, setContent] = useState(STARTER);
+  const [strict, setStrict] = useState(false);
   const [examples, setExamples] = useState<ExampleManifest[]>([]);
   const [rules, setRules] = useState<RuleInfo[]>([]);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [analyzedContent, setAnalyzedContent] = useState("");
+  const [severityFilter, setSeverityFilter] = useState<Severity | "all">("all");
 
   useEffect(() => {
     getExamples().then(setExamples).catch(() => setExamples([]));
     getRules().then(setRules).catch(() => setRules([]));
   }, []);
 
-  const totalFindings = useMemo(() => result?.findings.length || 0, [result]);
+  const filteredFindings = useMemo(() => {
+    if (!result) return [];
+    if (severityFilter === "all") return result.findings;
+    return result.findings.filter((finding) => finding.severity === severityFilter);
+  }, [result, severityFilter]);
 
-  async function runAnalysis() {
+  async function runAnalysis(nextContent = content, nextName = name) {
     setLoading(true);
     setError(null);
     try {
-      const analysis = await analyzeManifest(manifestName, content);
+      const analysis = await analyzeManifest(nextName, nextContent, { strict });
       setResult(analysis);
+      setAnalyzedContent(nextContent);
+      setSeverityFilter("all");
+      setResultTab("findings");
     } catch (err) {
+      setResult(null);
       setError(err instanceof Error ? err.message : "Analysis failed");
     } finally {
       setLoading(false);
     }
   }
 
-  function loadExample(example: ExampleManifest) {
-    setManifestName(example.name);
+  function loadExample(example: ExampleManifest, analyze = false) {
+    setName(example.name);
     setContent(example.content);
-    setResult(null);
     setError(null);
+    setView("review");
+    if (analyze) {
+      void runAnalysis(example.content, example.name);
+    } else {
+      setResult(null);
+    }
   }
 
   return (
-    <main className="app-shell">
+    <div className="app">
       <aside className="sidebar">
-        <div className="brand-mark">P</div>
-        <div>
-          <div className="brand-title">Podscope</div>
-          <div className="brand-subtitle">Kubernetes manifest review</div>
+        <div className="brand">
+          <span className="brand-mark">
+            <ScopeIcon className="icon-sm" />
+          </span>
+          <div>
+            <div className="brand-name">Podscope</div>
+            <div className="brand-tag">Kubernetes review</div>
+          </div>
         </div>
-        <nav>
-          <a className="active">Analyze</a>
-          <a>Rules</a>
-          <a>Reports</a>
-          <a>Integrations</a>
+        <nav className="nav">
+          {NAV.map(({ id, label, Icon }) => (
+            <button key={id} className={`nav-item ${view === id ? "is-active" : ""}`} onClick={() => setView(id)}>
+              <Icon className="icon-sm" />
+              {label}
+            </button>
+          ))}
         </nav>
+        <div className="sidebar-foot">
+          <div className="status-line">
+            <span className="status-dot" />
+            Local engine · {rules.length || "43"} rules
+          </div>
+          <p>Standalone module of the OpsDeck DevSecOps platform.</p>
+        </div>
       </aside>
 
-      <section className="main-panel">
-        <header className="hero">
+      <main className="content">
+        <header className="topbar">
           <div>
-            <p className="eyebrow">Static review for platform teams</p>
-            <h1>Find risky Kubernetes workload patterns before they reach the cluster.</h1>
-            <p className="hero-copy">Paste or upload manifest bundles, review baseline security and reliability findings, and hand engineers practical remediation hints.</p>
+            <h1>{NAV.find((item) => item.id === view)?.label}</h1>
+            <p className="topbar-sub">
+              {view === "review" && "Catch risky workload, RBAC, exposure, and reliability issues before deploy."}
+              {view === "rules" && "The deterministic checks behind every Podscope review."}
+              {view === "examples" && "Curated manifests to explore the analyzer."}
+              {view === "docs" && "Scoring, categories, and integration."}
+            </p>
           </div>
-          <div className="hero-card">
-            <div className="metric-number">{rules.length || 13}</div>
-            <div className="metric-label">built-in checks</div>
-          </div>
+          {view === "review" && (
+            <button className="primary-button header-run" onClick={() => runAnalysis()} disabled={loading}>
+              {loading ? "Analyzing…" : "Run review"}
+            </button>
+          )}
         </header>
 
-        <section className="grid two-column">
-          <div className="panel editor-panel">
-            <div className="panel-head">
-              <div>
-                <h2>Manifest input</h2>
-                <p>Multi-document YAML is supported.</p>
-              </div>
-              <button className="primary-button" onClick={runAnalysis} disabled={loading}>{loading ? "Analyzing..." : "Run review"}</button>
-            </div>
+        {view === "review" && (
+          <div className="workspace">
+            <section className="panel editor-panel">
+              <ManifestEditor
+                name={name}
+                value={content}
+                examples={examples}
+                loading={loading}
+                strict={strict}
+                onNameChange={setName}
+                onChange={setContent}
+                onLoadExample={(example) => loadExample(example, false)}
+                onStrictChange={setStrict}
+                onRun={() => runAnalysis()}
+              />
+            </section>
 
-            <label className="field-label">Bundle name</label>
-            <input className="text-input" value={manifestName} onChange={(event) => setManifestName(event.target.value)} />
-
-            <label className="field-label">Kubernetes YAML</label>
-            <textarea className="yaml-editor" value={content} onChange={(event) => setContent(event.target.value)} spellCheck={false} />
-
-            <div className="example-row">
-              {examples.map((example) => (
-                <button key={example.name} className="secondary-button" onClick={() => loadExample(example)}>{example.name}</button>
-              ))}
-            </div>
-            {error ? <div className="error-box">{error}</div> : null}
-          </div>
-
-          <div className="panel result-panel">
-            <div className="panel-head">
-              <div>
-                <h2>Review summary</h2>
-                <p>{result ? `${totalFindings} findings across ${result.resource_count} resources` : "Run a review to see score, findings, and remediation."}</p>
-              </div>
-            </div>
-            {result ? (
-              <>
-                <div className="summary-grid">
-                  <ScoreRing score={result.score} />
-                  <div className="mini-stat"><strong>{result.workload_count}</strong><span>workloads</span></div>
-                  <div className="mini-stat"><strong>{result.namespace_count}</strong><span>namespaces</span></div>
-                  <div className="mini-stat"><strong>{result.status}</strong><span>status</span></div>
+            <section className="results">
+              {error && (
+                <div className="panel error-panel">
+                  <div className="error-title">Could not analyze manifest</div>
+                  <p>{error}</p>
                 </div>
-                <div className="severity-grid">
-                  {Object.entries(result.severity_counts).map(([severity, count]) => (
-                    <div className="severity-cell" key={severity}>
-                      <span>{severity}</span>
-                      <strong>{count}</strong>
+              )}
+
+              {!result && !error && (
+                <div className="panel empty-hero">
+                  <div className="empty-hero-glyph">
+                    <ScopeIcon className="icon-lg" />
+                  </div>
+                  <h2>Run a review to see results</h2>
+                  <p>Paste a manifest, drop a YAML file, or load a sample. Podscope returns a score, grouped findings, and copy-ready fixes.</p>
+                  <div className="empty-hero-samples">
+                    {examples.slice(0, 3).map((example) => (
+                      <button key={example.name} className="ghost-button" onClick={() => loadExample(example, true)}>
+                        Try “{example.title}”
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {loading && !result && (
+                <div className="panel loading-panel">
+                  <div className="spinner" />
+                  <span>Reviewing manifest…</span>
+                </div>
+              )}
+
+              {result && (
+                <>
+                  <div className="panel scorecard-panel">
+                    <ScoreCard card={result.scorecard} />
+                    <p className="result-summary">{result.summary}</p>
+                    <StatTiles result={result} />
+                  </div>
+
+                  <div className="panel breakdown-panel">
+                    <div className="panel-section">
+                      <h3>Severity</h3>
+                      <SeverityBreakdown counts={result.severity_counts} active={severityFilter} onSelect={setSeverityFilter} />
                     </div>
-                  ))}
-                </div>
-                <FindingList findings={result.findings} />
-              </>
-            ) : (
-              <div className="empty-state tall">No review has been run yet.</div>
-            )}
-          </div>
-        </section>
+                    {result.category_counts.length > 0 && (
+                      <div className="panel-section">
+                        <h3>By category</h3>
+                        <CategoryBreakdown result={result} />
+                      </div>
+                    )}
+                  </div>
 
-        <section className="panel rules-panel">
-          <div className="panel-head">
-            <div>
-              <h2>Baseline rule set</h2>
-              <p>Focused on workload hardening, exposure, RBAC, and operational readiness.</p>
-            </div>
+                  <div className="panel result-tabs-panel">
+                    <div className="result-tabs">
+                      <button className={resultTab === "findings" ? "is-active" : ""} onClick={() => setResultTab("findings")}>
+                        Findings <span>{result.findings.length}</span>
+                      </button>
+                      <button className={resultTab === "resources" ? "is-active" : ""} onClick={() => setResultTab("resources")}>
+                        Resources <span>{result.resource_count}</span>
+                      </button>
+                      <button className={resultTab === "assistant" ? "is-active" : ""} onClick={() => setResultTab("assistant")}>
+                        Assistant
+                      </button>
+                    </div>
+
+                    <div className="result-tab-body">
+                      {resultTab === "findings" && (
+                        <>
+                          {severityFilter !== "all" && (
+                            <button className="clear-filter" onClick={() => setSeverityFilter("all")}>
+                              Clear {severityFilter} filter ×
+                            </button>
+                          )}
+                          <FindingsPanel findings={filteredFindings} />
+                        </>
+                      )}
+                      {resultTab === "resources" && <ResourceMap result={result} />}
+                      {resultTab === "assistant" && <AiPanel name={name} content={analyzedContent || content} />}
+                    </div>
+                  </div>
+
+                  {result.next_steps.length > 0 && resultTab === "findings" && (
+                    <div className="panel next-steps">
+                      <h3>Recommended next steps</h3>
+                      <ol>
+                        {result.next_steps.map((step, index) => (
+                          <li key={index}>{step}</li>
+                        ))}
+                      </ol>
+                    </div>
+                  )}
+                </>
+              )}
+            </section>
           </div>
-          <div className="rule-grid">
-            {rules.map((rule) => (
-              <article className="rule-card" key={rule.rule_id}>
-                <div className="rule-id">{rule.rule_id}</div>
-                <h3>{rule.title}</h3>
-                <p>{rule.description}</p>
-                <span>{rule.category}</span>
-              </article>
-            ))}
-          </div>
-        </section>
-      </section>
-    </main>
+        )}
+
+        {view === "rules" && <RulesView rules={rules} />}
+        {view === "examples" && <ExamplesView examples={examples} onLoad={(example) => loadExample(example, true)} />}
+        {view === "docs" && <DocsView />}
+      </main>
+    </div>
   );
 }

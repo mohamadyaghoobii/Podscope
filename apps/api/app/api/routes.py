@@ -1,182 +1,79 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, HTTPException
-from app.schemas.analysis import AnalyzeRequest, AnalyzeResponse, ExampleManifest, RuleInfo
-from app.services.analyzer import analyze_manifest
-from app.services.rules import RULES
+
+from app.ai import remediate as ai_remediate
+from app.ai import summarize as ai_summarize
+from app.analyzer import ManifestParseError, analyze
+from app.analyzer.registry import RULES
+from app.examples import load_examples
+from app.schemas.ai import (
+    AIRemediationRequest,
+    AIRemediationResponse,
+    AISummaryRequest,
+    AISummaryResponse,
+)
+from app.schemas.analysis import (
+    AnalyzeRequest,
+    AnalyzeResponse,
+    ExampleManifest,
+    RuleInfo,
+)
 
 router = APIRouter(prefix="/api")
 
 
 @router.get("/rules", response_model=list[RuleInfo])
 def list_rules() -> list[RuleInfo]:
-    return RULES
-
-
-@router.get("/examples", response_model=list[ExampleManifest])
-def examples() -> list[ExampleManifest]:
     return [
-        ExampleManifest(
-            name="risky-web.yaml",
-            description="A deliberately risky deployment, service, ingress, and RBAC bundle.",
-            content=RISKY_EXAMPLE,
-        ),
-        ExampleManifest(
-            name="hardened-web.yaml",
-            description="A safer baseline deployment with probes, limits, non-root execution, and network policy.",
-            content=HARDENED_EXAMPLE,
-        ),
+        RuleInfo(
+            id=rule.id,
+            title=rule.title,
+            severity=rule.severity,
+            category=rule.category,
+            confidence=rule.confidence,
+            description=rule.description,
+            impact=rule.impact,
+            remediation=rule.remediation,
+            references=list(rule.references),
+        )
+        for rule in RULES.values()
     ]
 
 
+@router.get("/examples", response_model=list[ExampleManifest])
+def list_examples() -> list[ExampleManifest]:
+    return load_examples()
+
+
 @router.post("/analyze", response_model=AnalyzeResponse)
-def analyze(request: AnalyzeRequest) -> AnalyzeResponse:
+def analyze_manifest(request: AnalyzeRequest) -> AnalyzeResponse:
     try:
-        return analyze_manifest(request.name, request.content)
-    except ValueError as exc:
-        raw = exc.args[0] if exc.args else {"detail": "Unable to parse manifest"}
-        raise HTTPException(status_code=422, detail=raw) from exc
+        return analyze(request)
+    except ManifestParseError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"detail": exc.detail, "line": exc.line, "column": exc.column},
+        ) from exc
 
 
-RISKY_EXAMPLE = """
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: storefront
-  namespace: prod
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: storefront
-  template:
-    metadata:
-      labels:
-        app: storefront
-    spec:
-      hostNetwork: true
-      volumes:
-        - name: host-root
-          hostPath:
-            path: /
-      containers:
-        - name: web
-          image: nginx:latest
-          securityContext:
-            privileged: true
-            capabilities:
-              add: ["SYS_ADMIN"]
-          volumeMounts:
-            - name: host-root
-              mountPath: /host
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: storefront
-  namespace: prod
-spec:
-  type: LoadBalancer
-  selector:
-    app: storefront
-  ports:
-    - port: 80
-      targetPort: 80
----
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: storefront
-  namespace: prod
-spec:
-  rules:
-    - host: storefront.example.com
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: storefront
-                port:
-                  number: 80
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: ClusterRole
-metadata:
-  name: broad-admin
-rules:
-  - apiGroups: ["*"]
-    resources: ["*"]
-    verbs: ["*"]
-""".strip()
+@router.post("/ai/summarize", response_model=AISummaryResponse)
+def ai_summarize_route(request: AISummaryRequest) -> AISummaryResponse:
+    analysis = _safe_analyze(request)
+    return ai_summarize(request, analysis)
 
-HARDENED_EXAMPLE = """
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: storefront
-  namespace: prod
-spec:
-  replicas: 2
-  selector:
-    matchLabels:
-      app: storefront
-  template:
-    metadata:
-      labels:
-        app: storefront
-    spec:
-      securityContext:
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
-      containers:
-        - name: web
-          image: nginx:1.27.3
-          ports:
-            - containerPort: 8080
-          securityContext:
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: ["ALL"]
-          resources:
-            requests:
-              cpu: 100m
-              memory: 128Mi
-            limits:
-              cpu: 500m
-              memory: 256Mi
-          readinessProbe:
-            httpGet:
-              path: /healthz
-              port: 8080
-          livenessProbe:
-            httpGet:
-              path: /livez
-              port: 8080
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: storefront
-  namespace: prod
-spec:
-  type: ClusterIP
-  selector:
-    app: storefront
-  ports:
-    - port: 80
-      targetPort: 8080
----
-apiVersion: networking.k8s.io/v1
-kind: NetworkPolicy
-metadata:
-  name: storefront-default-deny
-  namespace: prod
-spec:
-  podSelector:
-    matchLabels:
-      app: storefront
-  policyTypes:
-    - Ingress
-    - Egress
-""".strip()
+
+@router.post("/ai/remediate", response_model=AIRemediationResponse)
+def ai_remediate_route(request: AIRemediationRequest) -> AIRemediationResponse:
+    analysis = _safe_analyze(request)
+    return ai_remediate(request, analysis)
+
+
+def _safe_analyze(request: AnalyzeRequest) -> AnalyzeResponse:
+    try:
+        return analyze(request)
+    except ManifestParseError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"detail": exc.detail, "line": exc.line, "column": exc.column},
+        ) from exc

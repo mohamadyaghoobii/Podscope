@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: node-agent
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: node-agent
+  template:
+    metadata:
+      labels:
+        app: node-agent
+    spec:
+      hostNetwork: true
+      hostPID: true
+      hostIPC: true
+      containers:
+        - name: agent
+          image: registry.example.com/node-agent
+          securityContext:
+            privileged: true
+            capabilities:
+              add: ["SYS_MODULE", "SYS_RAWIO"]
+          volumeMounts:
+            - name: host
+              mountPath: /host
+      volumes:
+        - name: host
+          hostPath:
+            path: /
