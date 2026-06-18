@@ -1,0 +1,50 @@
+<svg width="1200" height="675" viewBox="0 0 1200 675" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1200" height="675" rx="36" fill="#08111F"/>
+  <circle cx="150" cy="80" r="220" fill="#2DD4BF" fill-opacity="0.13"/>
+  <circle cx="1020" cy="120" r="260" fill="#5CC8FF" fill-opacity="0.16"/>
+  <rect x="46" y="46" width="220" height="583" rx="24" fill="#07101D" stroke="#233149"/>
+  <rect x="82" y="82" width="48" height="48" rx="15" fill="url(#brand)"/>
+  <text x="147" y="108" fill="#E5EDF7" font-family="Arial" font-size="24" font-weight="700">Podscope</text>
+  <text x="147" y="128" fill="#95A3B8" font-family="Arial" font-size="12">manifest review</text>
+  <rect x="78" y="180" width="154" height="38" rx="12" fill="#5CC8FF" fill-opacity="0.14"/>
+  <text x="98" y="204" fill="#E5EDF7" font-family="Arial" font-size="14">Analyze</text>
+  <text x="98" y="258" fill="#95A3B8" font-family="Arial" font-size="14">Rules</text>
+  <text x="98" y="310" fill="#95A3B8" font-family="Arial" font-size="14">Reports</text>
+  <text x="98" y="362" fill="#95A3B8" font-family="Arial" font-size="14">Integrations</text>
+  <text x="310" y="100" fill="#5CC8FF" font-family="Arial" font-size="13" font-weight="700" letter-spacing="4">STATIC REVIEW</text>
+  <text x="310" y="150" fill="#E5EDF7" font-family="Arial" font-size="46" font-weight="800">Kubernetes workload risk review</text>
+  <text x="310" y="184" fill="#95A3B8" font-family="Arial" font-size="18">Paste YAML, inspect risky patterns, and give engineers practical fixes.</text>
+  <rect x="310" y="235" width="405" height="344" rx="24" fill="#111C31" stroke="#26364F"/>
+  <text x="342" y="280" fill="#E5EDF7" font-family="Arial" font-size="20" font-weight="700">Manifest input</text>
+  <rect x="342" y="306" width="330" height="224" rx="14" fill="#050B15" stroke="#26364F"/>
+  <text x="365" y="342" fill="#95A3B8" font-family="Consolas" font-size="16">apiVersion: apps/v1</text>
+  <text x="365" y="376" fill="#95A3B8" font-family="Consolas" font-size="16">kind: Deployment</text>
+  <text x="365" y="410" fill="#95A3B8" font-family="Consolas" font-size="16">securityContext:</text>
+  <text x="365" y="444" fill="#FF9F43" font-family="Consolas" font-size="16">  privileged: true</text>
+  <rect x="342" y="544" width="126" height="36" rx="12" fill="url(#brand)"/>
+  <text x="368" y="568" fill="#06101C" font-family="Arial" font-size="14" font-weight="700">Run review</text>
+  <rect x="746" y="235" width="386" height="344" rx="24" fill="#111C31" stroke="#26364F"/>
+  <text x="778" y="280" fill="#E5EDF7" font-family="Arial" font-size="20" font-weight="700">Review summary</text>
+  <circle cx="840" cy="365" r="62" fill="#5CC8FF" fill-opacity="0.10" stroke="#5CC8FF" stroke-opacity="0.40" stroke-width="2"/>
+  <text x="812" y="381" fill="#E5EDF7" font-family="Arial" font-size="42" font-weight="800">42</text>
+  <rect x="930" y="315" width="150" height="48" rx="14" fill="#050B15" stroke="#26364F"/>
+  <text x="950" y="344" fill="#E5EDF7" font-family="Arial" font-size="22" font-weight="800">9</text>
+  <text x="982" y="344" fill="#95A3B8" font-family="Arial" font-size="13">findings</text>
+  <rect x="930" y="379" width="150" height="48" rx="14" fill="#050B15" stroke="#26364F"/>
+  <text x="950" y="408" fill="#E5EDF7" font-family="Arial" font-size="22" font-weight="800">4</text>
+  <text x="982" y="408" fill="#95A3B8" font-family="Arial" font-size="13">resources</text>
+  <rect x="778" y="462" width="304" height="54" rx="16" fill="#050B15" stroke="#26364F"/>
+  <rect x="798" y="480" width="66" height="20" rx="10" fill="#FF6B6B" fill-opacity="0.20"/>
+  <text x="812" y="494" fill="#FFD1D1" font-family="Arial" font-size="11" font-weight="700">HIGH</text>
+  <text x="884" y="494" fill="#E5EDF7" font-family="Arial" font-size="14">Privileged container</text>
+  <rect x="778" y="526" width="304" height="54" rx="16" fill="#050B15" stroke="#26364F"/>
+  <rect x="798" y="544" width="88" height="20" rx="10" fill="#F5C156" fill-opacity="0.18"/>
+  <text x="812" y="558" fill="#FFE9A8" font-family="Arial" font-size="11" font-weight="700">MEDIUM</text>
+  <text x="904" y="558" fill="#E5EDF7" font-family="Arial" font-size="14">Missing limits</text>
+  <defs>
+    <linearGradient id="brand" x1="82" y1="82" x2="130" y2="130" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#5CC8FF"/>
+      <stop offset="1" stop-color="#43D19E"/>
+    </linearGradient>
+  </defs>
+</svg>
